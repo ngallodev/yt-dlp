@@ -129,3 +129,9 @@ yt-dlp.zip
 # Plugins
 ytdlp_plugins/
 yt-dlp-plugins
+
+# claude
+.claude
+CLAUDE.md
+perfectgirls.md
+

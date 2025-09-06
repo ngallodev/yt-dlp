@@ -1498,6 +1498,7 @@ from .peloton import (
     PelotonIE,
     PelotonLiveIE,
 )
+from .perfectgirls import PerfectGirlsIE
 from .performgroup import PerformGroupIE
 from .periscope import (
     PeriscopeIE,
