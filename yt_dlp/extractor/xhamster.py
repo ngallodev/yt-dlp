@@ -162,6 +162,45 @@ class XHamsterIE(InfoExtractor):
             return int_or_none(self._search_regex(
                 r'^(\d+)[pP]', s, 'height', default=None))
 
+        # Try to extract video formats from preload links (new method)
+        formats = []
+        format_urls = set()
+
+        # Look for HLS manifest in preload links
+        preload_links = re.findall(r'<link[^>]+rel=["\']preload["\'][^>]*>', webpage)
+        for preload_link in preload_links:
+            preload_attrs = extract_attributes(preload_link)
+            preload_href = preload_attrs.get('href')
+            preload_as = preload_attrs.get('as')
+
+            if (preload_href and preload_as == 'fetch' and
+                'video-nss.xhcdn.com' in preload_href and
+                '.m3u8' in preload_href):
+
+                if preload_href not in format_urls:
+                    format_urls.add(preload_href)
+                    # Extract HLS formats from the manifest
+                    hls_formats = self._extract_m3u8_formats(
+                        preload_href, video_id, 'mp4',
+                        entry_protocol='m3u8_native', m3u8_id='hls',
+                        fatal=False)
+
+                    if hls_formats:
+                        formats.extend(hls_formats)
+
+        # If preload method found formats, extract basic metadata and return early
+        if formats:
+            title = (self._html_search_regex(
+                [r'<h1[^>]*>([^<]+)</h1>',
+                 r'<meta[^>]+itemprop=".*?caption.*?"[^>]+content="(.+?)"',
+                 r'<title[^>]*>(.+?)(?:,\s*[^,]*?\s*Porn\s*[^,]*?:\s*xHamster[^<]*| - xHamster\.com)</title>'],
+                webpage, 'title', fatal=False) or display_id.replace('-', ' ').title())
+
+            return self._extract_metadata_and_return(
+                video_id, display_id, title, webpage, age_limit, formats, urlh.url)
+
+        # If no formats found via preload method, try JavaScript extraction as fallback
+
         initials = self._parse_json(
             self._search_regex(
                 (r'window\.initials\s*=\s*({.+?})\s*;\s*</script>',
@@ -388,6 +427,73 @@ class XHamsterIE(InfoExtractor):
             'dislike_count': int_or_none(dislike_count),
             'comment_count': int_or_none(comment_count),
             'age_limit': age_limit,
+            'categories': categories,
+            'formats': formats,
+        }
+
+    def _extract_metadata_and_return(self, video_id, display_id, title, webpage, age_limit, formats, referer_url):
+        """Extract metadata when using preload link method"""
+
+        # Add referer headers to all formats
+        for fmt in formats:
+            if 'http_headers' not in fmt:
+                fmt['http_headers'] = {}
+            fmt['http_headers']['Referer'] = referer_url
+
+        # Extract basic metadata from HTML
+        description = None
+        mobj = re.search(r'<span>Description: </span>([^<]+)', webpage)
+        description = mobj.group(1) if mobj else None
+
+        upload_date = unified_strdate(self._search_regex(
+            r'hint=["\'](\d{4}-\d{2}-\d{2}) \d{2}:\d{2}:\d{2} [A-Z]{3,4}',
+            webpage, 'upload date', fatal=False))
+
+        uploader = self._html_search_regex(
+            r'<span[^>]+itemprop=["\']author[^>]+><a[^>]+><span[^>]+>([^<]+)',
+            webpage, 'uploader', default='anonymous')
+
+        thumbnail = self._search_regex(
+            [r'''["']thumbUrl["']\s*:\s*(?P<q>["'])(?P<thumbnail>.+?)(?P=q)''',
+             r'''<video[^>]+"poster"=(?P<q>["'])(?P<thumbnail>.+?)(?P=q)[^>]*>'''],
+            webpage, 'thumbnail', fatal=False, group='thumbnail')
+
+        duration = parse_duration(self._search_regex(
+            [r'<[^<]+\bitemprop=["\']duration["\'][^<]+\bcontent=["\'](.+?)["\']',
+             r'Runtime:\s*</span>\s*([\d:]+)'], webpage,
+            'duration', fatal=False))
+
+        view_count = int_or_none(self._search_regex(
+            r'content=["\']User(?:View|Play)s:(\d+)',
+            webpage, 'view count', fatal=False))
+
+        mobj = re.search(r'hint=[\'"](?P<likecount>\d+) Likes / (?P<dislikecount>\d+) Dislikes', webpage)
+        (like_count, dislike_count) = (mobj.group('likecount'), mobj.group('dislikecount')) if mobj else (None, None)
+
+        mobj = re.search(r'</label>Comments \((?P<commentcount>\d+)\)</div>', webpage)
+        comment_count = mobj.group('commentcount') if mobj else 0
+
+        categories_html = self._search_regex(
+            r'(?s)<table.+?(<span>Categories:.+?)</table>', webpage,
+            'categories', default=None)
+        categories = [clean_html(category) for category in re.findall(
+            r'<a[^>]+>(.+?)</a>', categories_html)] if categories_html else None
+
+        return {
+            'id': video_id,
+            'display_id': display_id,
+            'title': title,
+            'description': description,
+            'upload_date': upload_date,
+            'uploader': uploader,
+            'uploader_id': uploader.lower() if uploader else None,
+            'thumbnail': thumbnail,
+            'duration': duration,
+            'view_count': view_count,
+            'like_count': int_or_none(like_count),
+            'dislike_count': int_or_none(dislike_count),
+            'comment_count': int_or_none(comment_count),
+            'age_limit': age_limit if age_limit is not None else 18,
             'categories': categories,
             'formats': formats,
         }
