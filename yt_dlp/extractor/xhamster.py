@@ -195,9 +195,9 @@ class XHamsterIE(InfoExtractor):
             preload_href = preload_attrs.get('href')
             preload_as = preload_attrs.get('as')
 
-            if (preload_href and preload_as == 'fetch' and
-                'video-nss.xhcdn.com' in preload_href and
-                '.m3u8' in preload_href):
+            if (preload_href and preload_as == 'fetch'
+                and 'video-nss.xhcdn.com' in preload_href
+                    and '.m3u8' in preload_href):
 
                 if preload_href not in format_urls:
                     format_urls.add(preload_href)

@@ -5,8 +5,6 @@ from ..utils import (
     int_or_none,
     parse_duration,
     strip_or_none,
-    traverse_obj,
-    unified_timestamp,
     url_or_none,
 )
 
@@ -41,33 +39,33 @@ class PerfectGirlsIE(InfoExtractor):
                 r'<h1[^>]*>([^<]+)</h1>', webpage, 'title', fatal=False)
         )
 
-        # Extract video sources - search for all source tags directly  
+        # Extract video sources - search for all source tags directly
         formats = []
-        
+
         # Extract all source elements directly from the entire webpage
         source_matches = re.findall(
-            r'<source[^>]+src=["\']([^"\']+\.mp4[^"\']*)["\'][^>]*(?:title=["\']([^"\']*)["\'])?[^>]*>', 
+            r'<source[^>]+src=["\']([^"\']+\.mp4[^"\']*)["\'][^>]*(?:title=["\']([^"\']*)["\'])?[^>]*>',
             webpage, re.MULTILINE | re.DOTALL)
-        
+
         for source_url, quality_label in source_matches:
             if not source_url:
                 continue
-                
+
             # Clean and validate URL
             source_url = url_or_none(source_url.strip())
             if not source_url:
                 continue
-            
+
             # Extract quality information
             height = None
             format_id = 'unknown'
-            
+
             # First try to get quality from title/label
             if quality_label and quality_label != 'Auto':
                 format_id = quality_label
                 height = int_or_none(self._search_regex(
                     r'(\d+)p?', quality_label, 'height', default=None))
-            
+
             # If no quality from label, try URL
             if not height:
                 height_match = self._search_regex(
@@ -77,7 +75,7 @@ class PerfectGirlsIE(InfoExtractor):
                     format_id = f'{height}p'
                 elif '_720p' not in source_url and '.' in source_url:
                     # This might be the base quality version (usually 480p)
-                    if source_url.endswith('.mp4/') or source_url.endswith('.mp4'):
+                    if source_url.endswith(('.mp4/', '.mp4')):
                         height = 480
                         format_id = '480p'
 
@@ -86,7 +84,7 @@ class PerfectGirlsIE(InfoExtractor):
             hls_formats = self._extract_m3u8_formats(
                 source_url, video_id, 'mp4', entry_protocol='m3u8_native',
                 m3u8_id=format_id, fatal=False)
-            
+
             if hls_formats:
                 formats.extend(hls_formats)
             else:
@@ -103,9 +101,9 @@ class PerfectGirlsIE(InfoExtractor):
         if not formats:
             # Look for common video URL patterns
             video_url_matches = re.findall(
-                r'(?:video_url|mp4_url|file)["\'\s]*:["\'\s]*([^"\']+\.mp4[^"\']*)', 
+                r'(?:video_url|mp4_url|file)["\'\s]*:["\'\s]*([^"\']+\.mp4[^"\']*)',
                 webpage, re.IGNORECASE)
-            
+
             for video_url in video_url_matches:
                 video_url = url_or_none(video_url.strip())
                 if video_url:
@@ -123,19 +121,19 @@ class PerfectGirlsIE(InfoExtractor):
             self._og_search_description(webpage, default=None)
             or self._html_search_meta('description', webpage, default=None)
             or self._html_search_regex(
-                r'<meta[^>]+name=["\']description["\'][^>]+content=["\']([^"\']+)', 
+                r'<meta[^>]+name=["\']description["\'][^>]+content=["\']([^"\']+)',
                 webpage, 'description', fatal=False)
         )
 
         duration = (
             parse_duration(self._html_search_meta('duration', webpage, default=None))
             or parse_duration(self._search_regex(
-                r'duration["\'\s]*:["\'\s]*["\']?(\d+)["\']?', 
+                r'duration["\'\s]*:["\'\s]*["\']?(\d+)["\']?',
                 webpage, 'duration', default=None))
         )
 
         view_count = int_or_none(self._search_regex(
-            r'(?:views?|watch)["\'\s]*:["\'\s]*["\']?(\d+)', 
+            r'(?:views?|watch)["\'\s]*:["\'\s]*["\']?(\d+)',
             webpage, 'view count', default=None))
 
         # Extract thumbnail
