@@ -4,7 +4,7 @@ __version__ = '2025.10.14'
 
 RELEASE_GIT_HEAD = 'a98e7f9f58a9492d2cb216baa59c890ed8ce02f3'
 
-VARIANT = None
+VARIANT = 'ngallo-xhamster-fix'
 
 UPDATE_HINT = None
 

@@ -254,7 +254,7 @@ class XHamsterIE(InfoExtractor):
             preload_as = preload_attrs.get('as')
 
             if (preload_href and preload_as == 'fetch'
-                and 'video-nss.xhcdn.com' in preload_href
+                and 'xhcdn.com' in preload_href
                     and '.m3u8' in preload_href):
 
                 if preload_href not in format_urls:
@@ -268,25 +268,56 @@ class XHamsterIE(InfoExtractor):
                     if hls_formats:
                         formats.extend(hls_formats)
 
-        # If preload method found formats, extract basic metadata and return early
-        if formats:
-            title = (self._html_search_regex(
-                [r'<h1[^>]*>([^<]+)</h1>',
-                 r'<meta[^>]+itemprop=".*?caption.*?"[^>]+content="(.+?)"',
-                 r'<title[^>]*>(.+?)(?:,\s*[^,]*?\s*Porn\s*[^,]*?:\s*xHamster[^<]*| - xHamster\.com)</title>'],
-                webpage, 'title', fatal=False) or display_id.replace('-', ' ').title())
-
-            return self._extract_metadata_and_return(
-                video_id, display_id, title, webpage, age_limit, formats, urlh.url)
-
-        # If no formats found via preload method, try JavaScript extraction as fallback
-
+        # Parse window.initials for metadata (used by both preload and fallback methods)
         initials = self._parse_json(
             self._search_regex(
                 (r'window\.initials\s*=\s*({.+?})\s*;\s*</script>',
                  r'window\.initials\s*=\s*({.+?})\s*;'), webpage, 'initials',
                 default='{}'),
             video_id, fatal=False)
+
+        # If preload method found formats and we have initials, use preload formats with initials metadata
+        if formats and initials:
+            video = initials.get('videoModel', {})
+            if video:
+                # Add referer headers to preload formats
+                for fmt in formats:
+                    if 'http_headers' not in fmt:
+                        fmt['http_headers'] = {}
+                    fmt['http_headers']['Referer'] = urlh.url
+
+                # Extract categories
+                categories = []
+                categories_list = video.get('categories')
+                if isinstance(categories_list, list):
+                    for c in categories_list:
+                        if isinstance(c, dict):
+                            c_name = c.get('name')
+                            if c_name:
+                                categories.append(c_name)
+
+                uploader_url = url_or_none(try_get(video, lambda x: x['author']['pageURL']))
+                return {
+                    'id': video_id,
+                    'display_id': display_id,
+                    'title': video.get('title'),
+                    'description': video.get('description'),
+                    'timestamp': int_or_none(video.get('created')),
+                    'uploader': try_get(video, lambda x: x['author']['name'], str),
+                    'uploader_url': uploader_url,
+                    'uploader_id': uploader_url.split('/')[-1] if uploader_url else None,
+                    'thumbnail': video.get('thumbURL'),
+                    'duration': int_or_none(video.get('duration')),
+                    'view_count': int_or_none(video.get('views')),
+                    'like_count': int_or_none(try_get(video, lambda x: x['rating']['likes'], int)),
+                    'dislike_count': int_or_none(try_get(video, lambda x: x['rating']['dislikes'], int)),
+                    'comment_count': int_or_none(video.get('comments')),
+                    'age_limit': age_limit if age_limit is not None else 18,
+                    'categories': categories,
+                    'formats': formats,
+                }
+
+        # If no formats found via preload method, try JavaScript extraction as fallback
         if initials:
             video = initials['videoModel']
             title = video['title']
