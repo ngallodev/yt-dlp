@@ -132,8 +132,9 @@ yt-dlp-plugins
 
 # claude
 .claude
+claude.md
 CLAUDE.md
 perfectgirls.md
 test_xhamster_debug.py
-XHAMSTER_FIX_STATUS.md
+*_STATUS.md
 ai_projects/
