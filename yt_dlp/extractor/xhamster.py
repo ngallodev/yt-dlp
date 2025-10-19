@@ -276,9 +276,9 @@ class XHamsterIE(InfoExtractor):
                 default='{}'),
             video_id, fatal=False)
 
-        # If preload method found formats and we have initials, use preload formats with initials metadata
-        if formats and initials:
-            video = initials.get('videoModel', {})
+        # If preload method found formats, return them (with metadata if available)
+        if formats:
+            video = (initials or {}).get('videoModel', {})
             if video:
                 # Add referer headers to preload formats
                 for fmt in formats:
@@ -316,6 +316,27 @@ class XHamsterIE(InfoExtractor):
                     'categories': categories,
                     'formats': formats,
                 }
+
+            # Fallback: Extract basic metadata from HTML if videoModel not available
+            title = self._html_search_regex(
+                [r'<h1[^>]*>([^<]+)</h1>',
+                 r'<meta[^>]+itemprop=".*?caption.*?"[^>]+content="(.+?)"',
+                 r'<title[^>]*>(.+?)(?:,\s*[^,]*?\s*Porn\s*[^,]*?:\s*xHamster[^<]*| - xHamster\.com)</title>'],
+                webpage, 'title', fatal=False) or display_id.replace('-', ' ').title()
+
+            # Add referer headers to preload formats
+            for fmt in formats:
+                if 'http_headers' not in fmt:
+                    fmt['http_headers'] = {}
+                fmt['http_headers']['Referer'] = urlh.url
+
+            return {
+                'id': video_id,
+                'display_id': display_id,
+                'title': title,
+                'age_limit': age_limit if age_limit is not None else 18,
+                'formats': formats,
+            }
 
         # If no formats found via preload method, try JavaScript extraction as fallback
         if initials:
