@@ -339,6 +339,49 @@ class XHamsterIE(InfoExtractor):
             }
 
         # If no formats found via preload method, try JavaScript extraction as fallback
+
+        # If preload method found formats and we have initials, use preload formats with initials metadata
+        if formats and initials:
+            video = initials.get('videoModel', {})
+            if video:
+                # Add referer headers to preload formats
+                for fmt in formats:
+                    if 'http_headers' not in fmt:
+                        fmt['http_headers'] = {}
+                    fmt['http_headers']['Referer'] = urlh.url
+
+                # Extract categories
+                categories = []
+                categories_list = video.get('categories')
+                if isinstance(categories_list, list):
+                    for c in categories_list:
+                        if isinstance(c, dict):
+                            c_name = c.get('name')
+                            if c_name:
+                                categories.append(c_name)
+
+                uploader_url = url_or_none(try_get(video, lambda x: x['author']['pageURL']))
+                return {
+                    'id': video_id,
+                    'display_id': display_id,
+                    'title': video.get('title'),
+                    'description': video.get('description'),
+                    'timestamp': int_or_none(video.get('created')),
+                    'uploader': try_get(video, lambda x: x['author']['name'], str),
+                    'uploader_url': uploader_url,
+                    'uploader_id': uploader_url.split('/')[-1] if uploader_url else None,
+                    'thumbnail': video.get('thumbURL'),
+                    'duration': int_or_none(video.get('duration')),
+                    'view_count': int_or_none(video.get('views')),
+                    'like_count': int_or_none(try_get(video, lambda x: x['rating']['likes'], int)),
+                    'dislike_count': int_or_none(try_get(video, lambda x: x['rating']['dislikes'], int)),
+                    'comment_count': int_or_none(video.get('comments')),
+                    'age_limit': age_limit if age_limit is not None else 18,
+                    'categories': categories,
+                    'formats': formats,
+                }
+
+        # If no formats found via preload method, try JavaScript extraction as fallback
         if initials:
             video = initials['videoModel']
             title = video['title']
