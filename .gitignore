@@ -107,6 +107,7 @@ README.txt
 test/testdata/sigs/player-*.js
 test/testdata/thumbnails/empty.webp
 test/testdata/thumbnails/foo\ %d\ bar/foo_%d.*
+.ejs-*
 
 # Binary
 /youtube-dl
@@ -138,3 +139,6 @@ perfectgirls.md
 test_xhamster_debug.py
 *_STATUS.md
 ai_projects/
+
+# Packages
+yt_dlp_ejs/
