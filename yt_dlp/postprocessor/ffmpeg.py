@@ -679,7 +679,9 @@ class FFmpegMetadataPP(FFmpegPostProcessor):
         self._fixup_chapters(info)
         filename, metadata_filename = info['filepath'], None
         files_to_delete, options = [], []
-        if self._add_chapters and info.get('chapters'):
+        # Check if chapters should be embedded (either by user flag or forced by WriteChaptersPP)
+        add_chapters = self._add_chapters or info.get('__chapters_embed_forced', False)
+        if add_chapters and info.get('chapters'):
             metadata_filename = replace_extension(filename, 'meta')
             options.extend(self._get_chapter_opts(info['chapters'], metadata_filename))
             files_to_delete.append(metadata_filename)

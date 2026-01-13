@@ -26,6 +26,12 @@ from ..utils import (
 )
 from ..utils.traversal import find_elements, traverse_obj
 
+try:
+    from bs4 import BeautifulSoup
+    HAS_BS4 = True
+except ImportError:
+    HAS_BS4 = False
+
 
 class PornHubBaseIE(InfoExtractor):
     _NETRC_MACHINE = 'pornhub'
@@ -121,6 +127,84 @@ class PornHubBaseIE(InfoExtractor):
                 f'Unable to login: {message}', expected=True)
 
         raise ExtractorError('Unable to log in')
+
+
+def _timestamp_to_seconds(timestamp):
+    """Convert timestamp (HH:MM:SS or MM:SS) to seconds."""
+    parts = timestamp.split(':')
+    if not 2 <= len(parts) <= 3:
+        return None
+
+    h, m, s = 0, 0, 0
+    try:
+        if len(parts) == 3:
+            h, m, s = (int(parts[0]), int(parts[1]), int(parts[2]))
+        else:
+            m, s = (int(parts[0]), int(parts[1]))
+        return h * 3600 + m * 60 + s
+    except (ValueError, TypeError):
+        return None
+
+
+def _extract_action_tags(webpage, duration=None):
+    """
+    Extract PornHub action tags (chapters) from webpage HTML.
+    Action tags are embedded as: actionTags: "Title1:timestamp1,Title2:timestamp2,..."
+    Returns a list of chapter dicts in yt-dlp format.
+    """
+    try:
+        # Look for actionTags variable in the flashvars or initialization scripts
+        # Format: "actionTags":"Blowjob:292,Pussy Licking:371,Missionary:451,..."
+        action_tags_match = re.search(r'"actionTags"\s*:\s*"([^"]+)"', webpage)
+
+        if not action_tags_match:
+            return None
+
+        action_tags_str = action_tags_match.group(1)
+        if not action_tags_str:
+            return None
+
+        chapters = []
+
+        # Parse comma-separated chapters with format: "Title:timestamp,Title:timestamp,..."
+        for tag_pair in action_tags_str.split(','):
+            tag_pair = tag_pair.strip()
+            if not tag_pair or ':' not in tag_pair:
+                continue
+
+            # Split on last colon to handle titles that might contain colons
+            last_colon_idx = tag_pair.rfind(':')
+            title = tag_pair[:last_colon_idx].strip()
+            timestamp_str = tag_pair[last_colon_idx + 1:].strip()
+
+            try:
+                start_time = float(timestamp_str)
+            except ValueError:
+                continue
+
+            if not title:
+                continue
+
+            chapters.append({
+                'title': title,
+                'start_time': start_time,
+            })
+
+        # Sort chapters by start time
+        chapters.sort(key=lambda x: x['start_time'])
+
+        # Fill in end_time based on next chapter's start_time
+        for i, chapter in enumerate(chapters):
+            if i + 1 < len(chapters):
+                chapter['end_time'] = chapters[i + 1]['start_time']
+            elif duration:
+                chapter['end_time'] = duration
+
+        return chapters if chapters else None
+
+    except Exception:
+        # If parsing fails for any reason, just return None
+        return None
 
 
 class PornHubIE(PornHubBaseIE):
@@ -486,6 +570,9 @@ class PornHubIE(PornHubBaseIE):
         # description provided in JSON-LD is irrelevant
         info['description'] = None
 
+        # Extract action tags as chapters
+        chapters = _extract_action_tags(webpage, duration)
+
         return merge_dicts({
             'id': video_id,
             'uploader': video_uploader,
@@ -506,6 +593,7 @@ class PornHubIE(PornHubBaseIE):
                 'cast': ({find_elements(attr='data-label', value='pornstar')}, ..., {clean_html}),
             }),
             'subtitles': subtitles,
+            'chapters': chapters,
         }, info)
 
 

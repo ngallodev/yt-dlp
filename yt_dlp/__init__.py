@@ -690,19 +690,26 @@ def get_postprocessors(opts):
             'sponsorblock_chapter_title': opts.sponsorblock_chapter_title,
             'force_keyframes': opts.force_keyframes_at_cuts,
         }
+    # WriteChaptersPP writes external chapter files for debugging/reference
+    # Always run it - it will skip if no chapters are present
+    yield {
+        'key': 'WriteChapters',
+        'force_embed': True,  # Auto-enable chapter embedding when chapters exist
+    }
     # FFmpegMetadataPP should be run after FFmpegVideoConvertorPP and
     # FFmpegExtractAudioPP as containers before conversion may not support
     # metadata (3gp, webm, etc.)
     # By default ffmpeg preserves metadata applicable for both
     # source and target containers. From this point the container won't change,
     # so metadata can be added here.
-    if opts.addmetadata or opts.addchapters or opts.embed_infojson:
-        yield {
-            'key': 'FFmpegMetadata',
-            'add_chapters': opts.addchapters,
-            'add_metadata': opts.addmetadata,
-            'add_infojson': opts.embed_infojson,
-        }
+    # FFmpegMetadataPP always runs to handle chapter embedding via __chapters_embed_forced flag
+    # set by WriteChaptersPP. User options control whether other metadata is embedded.
+    yield {
+        'key': 'FFmpegMetadata',
+        'add_chapters': opts.addchapters,
+        'add_metadata': opts.addmetadata,
+        'add_infojson': opts.embed_infojson,
+    }
     if opts.embedthumbnail:
         yield {
             'key': 'EmbedThumbnail',
